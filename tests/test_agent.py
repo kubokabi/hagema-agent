@@ -183,6 +183,26 @@ class ConfigTest(unittest.TestCase):
         cfg.set_default_provider("ollama")
         self.assertEqual(cfg.default_provider, "ollama")
 
+    def test_set_model(self):
+        raw = {
+            "default_provider": "deepseek",
+            "providers": {
+                "deepseek": {"base_url": "x", "model": "deepseek-chat", "api_key_env": "K"},
+            },
+            "failover_order": ["deepseek"],
+        }
+        cfg = Config(raw)
+        cfg.set_model("deepseek", "deepseek-reasoner")
+        self.assertEqual(cfg.providers["deepseek"].model, "deepseek-reasoner")
+        self.assertEqual(cfg.raw["providers"]["deepseek"]["model"], "deepseek-reasoner")
+        with self.assertRaises(KeyError):
+            cfg.set_model("tidak-ada", "x")
+
+    def test_mock_list_models(self):
+        pm = make_manager({"m": "normal"}, "m", ["m"])
+        models = pm.current.list_models()
+        self.assertEqual(models, ["mock-model"])
+
     def test_env_loading(self):
         env_file = self.tmp / ".env"
         env_file.write_text("DEEPSEEK_API_KEY=sk-test\n", encoding="utf-8")

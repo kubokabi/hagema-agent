@@ -36,6 +36,7 @@ BANNER = (
 HELP = """**Slash commands:**
 - `/help` — bantuan ini
 - `/providers` — daftar provider + status key
+- `/models` — deteksi & daftar model yang tersedia di provider aktif
 - `/switch <nama>` — rekap sesi lalu pindah provider
 - `/recap` — buat rekap sesi sekarang (tanpa pindah provider)
 - `/usage` — token & estimasi biaya per provider
@@ -214,6 +215,19 @@ def handle_command(line: str, ctx) -> bool:
             key_state = "key OK" if key_ok else "key KOSONG"
             console.print(f"  {marker} {name} → {p.cfg.model} [{key_state}]")
         return True
+    if cmd == "/models":
+        try:
+            models = pm.current.list_models()
+        except Exception as e:  # noqa: BLE001 - tampilkan pesan mentah
+            console.print(f"[red]Gagal mendeteksi model: {e}[/red]")
+            return True
+        current = pm.current.cfg.model
+        console.print(f"[bold]Model tersedia ({pm.current_name}):[/bold]")
+        for m in models:
+            marker = "★ aktif" if m == current else "   "
+            console.print(f"  {marker} {m}")
+        console.print(f"Ganti model: [bold]hagema model {pm.current_name} <nama-model>[/bold]")
+        return True
     if cmd == "/switch":
         if not arg:
             console.print("Pakai: /switch <nama-provider>")
@@ -385,10 +399,13 @@ def cmd_model(args, console) -> int:
     cfg.load_env(Path(args.env))
 
     if args.name:
-        # ganti default provider
+        # ganti default provider (dan opsional ganti model)
         if args.name not in cfg.providers:
             console.print(f"[red]Provider '{args.name}' tidak ada. Tersedia: {', '.join(cfg.provider_names())}[/red]")
             return 1
+        if args.model:
+            cfg.set_model(args.name, args.model)
+            console.print(f"Model {args.name} → [bold]{args.model}[/bold] ✓")
         cfg.set_default_provider(args.name)
         cfg.save(cfg_path)
         console.print(f"Provider default → [bold]{args.name}[/bold] ✓")
@@ -403,6 +420,43 @@ def cmd_model(args, console) -> int:
         key_state = "key OK" if key_ok else "key KOSONG"
         console.print(f"  {marker} {name} → {p.cfg.model} [{key_state}]")
     console.print("\nGanti default: [bold]hagema model <nama>[/bold]")
+    console.print("Ganti model: [bold]hagema model <nama> <nama-model>[/bold]")
+    console.print("Deteksi model: [bold]hagema models [nama-provider][/bold]")
+    return 0
+
+
+def cmd_models(args, console) -> int:
+    """Deteksi & tampilkan model yang tersedia dari API provider (GET /models)."""
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        console.print(f"[red]Config tidak ditemukan: {cfg_path}[/red]")
+        console.print("Jalankan dulu: [bold]hagema setup[/bold]")
+        return 1
+    cfg = Config.load(cfg_path)
+    cfg.load_env(Path(args.env))
+    pm = ProviderManager(cfg, os.environ)
+
+    names = [args.provider] if args.provider else [pm.current_name]
+    for name in names:
+        p = pm.get(name)
+        if p is None:
+            console.print(f"[red]Provider '{name}' tidak ada. Tersedia: {', '.join(pm.names())}[/red]")
+            continue
+        current = p.cfg.model
+        console.print(f"[bold]Mendeteksi model untuk {name}...[/bold]")
+        try:
+            models = p.list_models()
+        except Exception as e:  # noqa: BLE001 - tampilkan pesan mentah
+            console.print(f"[red]  Gagal: {e}[/red]")
+            continue
+        if not models:
+            console.print("  (tidak ada model terdeteksi)")
+            continue
+        console.print(f"  {len(models)} model ditemukan:")
+        for m in models:
+            marker = "★ aktif" if m == current else "   "
+            console.print(f"  {marker} {m}")
+        console.print(f"Ganti: [bold]hagema model {name} <nama-model>[/bold]\n")
     return 0
 
 
@@ -483,8 +537,14 @@ def main(argv=None) -> int:
 
     # model
     p_model = sub.add_parser("model", parents=[make_common_parser()],
-                             help="Lihat atau ganti provider default")
+                             help="Lihat / ganti provider default atau model")
     p_model.add_argument("name", nargs="?", help="Nama provider yang dijadikan default")
+    p_model.add_argument("model", nargs="?", help="Opsional: model baru untuk provider itu")
+
+    # models (deteksi model dari API)
+    p_models = sub.add_parser("models", parents=[make_common_parser()],
+                              help="Deteksi daftar model yang tersedia dari API provider")
+    p_models.add_argument("provider", nargs="?", help="Nama provider (default: provider aktif)")
 
     # doctor
     sub.add_parser("doctor", parents=[make_common_parser()],
@@ -497,6 +557,8 @@ def main(argv=None) -> int:
         return cmd_setup(args, console)
     if args.command == "model":
         return cmd_model(args, console)
+    if args.command == "models":
+        return cmd_models(args, console)
     if args.command == "doctor":
         return cmd_doctor(args, console)
     return cmd_chat(args, console)

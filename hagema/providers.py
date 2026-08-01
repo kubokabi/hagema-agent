@@ -62,6 +62,19 @@ class Provider:
     def name(self) -> str:
         return self.cfg.name
 
+    def list_models(self) -> List[str]:
+        """Deteksi daftar model yang tersedia dari API provider (GET /models).
+
+        Semua provider di sini OpenAI-compatible, jadi endpoint `GET {base_url}/models`
+        bisa dipakai untuk mendeteksi model yang tersedia secara live.
+        Melempar ProviderError bila gagal (auth, network, dll).
+        """
+        try:
+            resp = self._client.models.list()
+            return sorted(m.id for m in (resp.data or []))
+        except Exception as e:  # noqa: BLE001 - klasifikasi manual di bawah
+            raise _classify(e, self.name)
+
     def chat(
         self,
         messages: List[Dict[str, Any]],
@@ -125,6 +138,10 @@ class MockProvider(Provider):
     @property
     def name(self) -> str:
         return self.cfg.name
+
+    def list_models(self) -> List[str]:
+        """Model tiruan untuk mock (tanpa jaringan)."""
+        return ["mock-model"]
 
     def chat(self, messages, tools=None, temperature=0.6):  # noqa: ARG002
         self.calls += 1

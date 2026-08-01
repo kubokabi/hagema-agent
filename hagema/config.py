@@ -82,3 +82,10 @@ class Config:
         """Ubah provider default di dalam raw config."""
         self.default_provider = name
         self.raw["default_provider"] = name
+
+    def set_model(self, name: str, model: str) -> None:
+        """Ubah model untuk sebuah provider di dalam raw config."""
+        if name not in self.providers:
+            raise KeyError(f"Provider '{name}' tidak ada")
+        self.providers[name].model = model
+        self.raw.setdefault("providers", {}).setdefault(name, {})["model"] = model

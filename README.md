@@ -68,6 +68,9 @@ hagema                         # chat REPL (provider default)
 hagema --mock quota            # demo failover tanpa API key
 hagema model                   # lihat provider terkonfigurasi
 hagema model ollama            # ganti provider default jadi ollama
+hagema model ollama qwen3:14b  # ganti provider + model sekaligus
+hagema models                  # deteksi daftar model dari API provider aktif
+hagema models openrouter       # deteksi model dari provider tertentu
 hagema doctor                  # cek instalasi & config
 hagema --session kerja-ssmi    # sesi bernama (riwayat tersimpan)
 hagema --yes                   # auto-approve perintah terminal
@@ -77,6 +80,7 @@ hagema --yes                   # auto-approve perintah terminal
 
 ```
 kamu> buatkan file .sql untuk tabel baru
+kamu> /models                     # deteksi model yang tersedia di provider aktif
 kamu> /switch openrouter          # rekap sesi lalu pindah provider
 kamu> /recap                      # rekap sekarang tanpa pindah
 kamu> /usage                      # token & biaya
