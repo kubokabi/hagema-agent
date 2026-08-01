@@ -1,10 +1,10 @@
 """Antarmuka CLI untuk hagema-agent — gaya opencode.
 
 Subcommand:
-  hagema-agent               → chat REPL (default)
-  hagema-agent setup         → wizard konfigurasi interaktif
-  hagema-agent model         → lihat/ganti provider aktif
-  hagema-agent doctor        → periksa instalasi & konfigurasi
+  hagema                     → chat REPL (default)
+  hagema setup               → wizard konfigurasi interaktif
+  hagema model               → lihat/ganti provider aktif
+  hagema doctor              → periksa instalasi & konfigurasi
 """
 
 from __future__ import annotations
@@ -160,7 +160,7 @@ def cmd_chat(args, console) -> int:
         cfg_path = Path(args.config)
         if not cfg_path.exists():
             console.print(f"[red]Config tidak ditemukan: {cfg_path}[/red]")
-            console.print("Jalankan dulu: [bold]hagema-agent setup[/bold]")
+            console.print("Jalankan dulu: [bold]hagema setup[/bold]")
             return 1
         cfg, pm, session, skills, memory, agent = build_components(args)
 
@@ -289,7 +289,7 @@ def cmd_setup(args, console) -> int:
     cfg_path = Path(args.config)
     env_path = Path(args.env)
 
-    console.print(Panel(f"[bold cyan]hagema-agent setup[/bold cyan] v{__version__}", border_style="cyan"))
+    console.print(Panel(f"[bold cyan]hagema setup[/bold cyan] v{__version__}", border_style="cyan"))
     console.print(
         "Wizard ini menulis [bold]config.yaml[/bold] dan [bold].env[/bold] otomatis.\n"
         "Model & provider diatur di config — hanya API key yang disimpan di .env.\n"
@@ -366,7 +366,7 @@ def cmd_setup(args, console) -> int:
         console.print(f"[green]API key disimpan di {env_path}[/green]")
 
     console.print(f"[green]Config ditulis ke {cfg_path}[/green]")
-    console.print("\nSelesai! Jalankan [bold]hagema-agent[/bold] untuk mulai ngobrol. 🚀")
+    console.print("\nSelesai! Jalankan [bold]hagema[/bold] untuk mulai ngobrol. 🚀")
     return 0
 
 
@@ -379,7 +379,7 @@ def cmd_model(args, console) -> int:
     cfg_path = Path(args.config)
     if not cfg_path.exists():
         console.print(f"[red]Config tidak ditemukan: {cfg_path}[/red]")
-        console.print("Jalankan dulu: [bold]hagema-agent setup[/bold]")
+        console.print("Jalankan dulu: [bold]hagema setup[/bold]")
         return 1
     cfg = Config.load(cfg_path)
     cfg.load_env(Path(args.env))
@@ -402,7 +402,7 @@ def cmd_model(args, console) -> int:
         key_ok = p.cfg.has_key(os.environ)
         key_state = "key OK" if key_ok else "key KOSONG"
         console.print(f"  {marker} {name} → {p.cfg.model} [{key_state}]")
-    console.print("\nGanti default: [bold]hagema-agent model <nama>[/bold]")
+    console.print("\nGanti default: [bold]hagema model <nama>[/bold]")
     return 0
 
 
@@ -413,12 +413,12 @@ def cmd_model(args, console) -> int:
 
 def cmd_doctor(args, console) -> int:
     cfg_path = Path(args.config)
-    console.print(Panel("[bold cyan]hagema-agent doctor[/bold cyan]", border_style="cyan"))
+    console.print(Panel("[bold cyan]hagema doctor[/bold cyan]", border_style="cyan"))
     console.print(f"Versi: [bold]{__version__}[/bold]")
     console.print(f"Config: [bold]{cfg_path}[/bold] {'✓ ada' if cfg_path.exists() else '✗ belum ada'}")
 
     if not cfg_path.exists():
-        console.print("Jalankan [bold]hagema-agent setup[/bold] untuk membuat config.")
+        console.print("Jalankan [bold]hagema setup[/bold] untuk membuat config.")
         return 0
 
     cfg = Config.load(cfg_path)
