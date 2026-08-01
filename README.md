@@ -187,6 +187,13 @@ hagema                    # CLI penuh, sama seperti di Mac
 ```
 
 > Semua mode jarak jauh menolak perintah terminal kecuali diberi `--yes` — pastikan hanya kamu yang punya aksesnya.
+>
+> `hagema serve` dan `hagema telegram` berjalan di foreground — biarkan terminal tetap terbuka, atau jalankan persistent pakai `tmux` / `nohup`:
+>
+> ```bash
+> nohup hagema serve --host 0.0.0.0 --token rahasiaku > ~/hagema-web.log 2>&1 &
+> tmux new -d -s hagema 'hagema telegram --token TOKEN --allow CHAT_ID'
+> ```
 
 ## Test
 

@@ -55,6 +55,9 @@ PAGE = """<!doctype html>
   footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:10px; }
   input { flex:1; background:var(--panel); color:var(--text); border:1px solid var(--border);
           border-radius:10px; padding:12px 14px; font-size:14px; outline:none; }
+  #reset { background:var(--panel); color:var(--muted); border:1px solid var(--border);
+           padding:12px 14px; }
+  #reset:hover { color:#f85149; border-color:#f85149; filter:none; }
   input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(47,129,247,.2); }
   button { background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff;
            border:none; border-radius:10px; padding:12px 20px; font-size:14px;
@@ -74,6 +77,7 @@ PAGE = """<!doctype html>
 <main id="chat"></main>
 <footer>
   <input id="inp" placeholder="Tulis pesan… (Enter untuk kirim)" autocomplete="off">
+  <button id="reset" title="Bersihkan sesi">Reset</button>
   <button id="send">Kirim</button>
 </footer>
 <script>
@@ -94,15 +98,21 @@ function addMsg(text, cls) {
 }
 
 async function api(path, body) {
-  const res = await fetch(path, {
+  let res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (res.status === 401) {
-    token = prompt('Masukkan token akses:');
-    localStorage.setItem('hagema_token', token || '');
-    return api(path, body);
+    const t = prompt('Masukkan token akses:');
+    if (!t) throw new Error('dibatalkan (token diperlukan)');
+    token = t;
+    localStorage.setItem('hagema_token', token);
+    res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body),
+    });
   }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || res.statusText);
@@ -133,6 +143,16 @@ async function sendMessage() {
 send.onclick = sendMessage;
 inp.onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
 
+document.getElementById('reset').onclick = async () => {
+  try {
+    const data = await api('/api/reset', {});
+    chat.innerHTML = '';
+    addMsg('🧹 ' + data.reply, 'bot');
+  } catch (e) {
+    addMsg('Gagal reset: ' + e.message, 'bot err');
+  }
+};
+
 async function refreshStatus() {
   try {
     const res = await fetch('/api/status', { headers: authHeaders() });
@@ -140,6 +160,9 @@ async function refreshStatus() {
       const d = await res.json();
       statusEl.textContent = '● ' + d.provider;
       statusEl.className = 'on';
+    } else if (res.status === 401) {
+      statusEl.textContent = 'perlu token 🔒';
+      statusEl.className = '';
     }
   } catch (_) { /* abaikan */ }
 }
@@ -198,6 +221,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/reset":
+            if not self._authorized():
+                return self._unauthorized()
+            with self.lock:
+                reply = self.bridge.reset()
+            return self._json(200, {"reply": reply})
         if parsed.path != "/api/chat":
             return self._json(404, {"error": "not found"})
         if not self._authorized():

@@ -288,5 +288,82 @@ class HeadlessBridgeTest(unittest.TestCase):
         self.assertIn("TOTAL", text)
 
 
+class WebServerTest(unittest.TestCase):
+    """Integration test web app: server nyata + endpoint /api/chat, /api/reset, /api/status."""
+
+    def setUp(self):
+        import threading
+        from http.server import ThreadingHTTPServer
+
+        from hagema.remote import HeadlessBridge
+        from hagema.web import Handler
+
+        self.tmp = Path(tempfile.mkdtemp())
+        session = Session(self.tmp / "web.jsonl")
+        skills = SkillsRegistry(self.tmp / "skills")
+        memory = Memory(self.tmp / "MEMORY.md")
+        executor = ToolExecutor(cwd=self.tmp, confirm=lambda _c: False)
+        pm = make_manager({"m": "normal"}, "m", ["m"])
+        agent = Agent(None, pm, session, executor, skills, memory)
+        Handler.bridge = HeadlessBridge(None, pm, session, skills, memory, agent)
+        Handler.token = None
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def _request(self, path: str, payload: dict | None = None, token: str | None = None):
+        import json as _json
+        import urllib.error
+        import urllib.request
+
+        url = f"http://127.0.0.1:{self.port}{path}"
+        data = _json.dumps(payload).encode() if payload is not None else None
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        if data:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status, _json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            # urlopen melempar HTTPError untuk status 4xx/5xx — ubah jadi (status, body)
+            return e.code, _json.loads(e.read().decode() or b"{}")
+
+    def test_status(self):
+        status, body = self._request("/api/status")
+        self.assertEqual(status, 200)
+        self.assertIn("m", body["provider"])
+
+    def test_chat(self):
+        status, body = self._request("/api/chat", {"message": "halo"})
+        self.assertEqual(status, 200)
+        self.assertIn("Mock[m]", body["reply"])
+
+    def test_reset(self):
+        self._request("/api/chat", {"message": "halo"})
+        status, body = self._request("/api/reset", {})
+        self.assertEqual(status, 200)
+        self.assertIn("dibersihkan", body["reply"])
+
+    def test_unauthorized(self):
+        from hagema.web import Handler
+        Handler.token = "rahasia"
+        try:
+            status, body = self._request("/api/chat", {"message": "x"})
+            self.assertEqual(status, 401)
+            status, body = self._request("/api/chat", {"message": "x"}, token="rahasia")
+            self.assertEqual(status, 200)
+        finally:
+            Handler.token = None
+
+
 if __name__ == "__main__":
     unittest.main()
