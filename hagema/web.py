@@ -15,7 +15,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from rich.console import Console
 
@@ -240,7 +240,12 @@ def run_web(args, console: Console) -> int:
 
     host = args.host
     port = args.port
-    server = ThreadingHTTPServer((host, port), Handler)
+    try:
+        server = ThreadingHTTPServer((host, port), Handler)
+    except OSError as e:
+        console.print(f"[red]Tidak bisa bind {host}:{port} — {e}[/red]")
+        console.print("Coba port lain: [bold]hagema serve --port 9000[/bold]")
+        return 1
     url = f"http://127.0.0.1:{port}" if host in ("127.0.0.1", "localhost") else f"http://{host}:{port}"
 
     console.print(f"[bold cyan]hagema web[/bold cyan] — {url}")
