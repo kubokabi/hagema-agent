@@ -56,7 +56,8 @@ def _send(token: str, chat_id: int, text: str) -> None:
 
 
 def _command(text: str) -> str:
-    return (text or "").strip().split(maxsplit=1)[0].lower()
+    cmd = (text or "").strip().split(maxsplit=1)[0].lower()
+    return cmd.split("@")[0]  # abaikan sufiks @username (perilaku Telegram di grup)
 
 
 def run_telegram(args, console: Console) -> int:

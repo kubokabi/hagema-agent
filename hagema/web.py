@@ -11,11 +11,26 @@ from __future__ import annotations
 
 import json
 import secrets
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
+
+
+def _lan_ip() -> str:
+    """IP LAN mesin ini (buat URL yang bisa dibuka dari HP se-LAN)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+        return ip
+    except Exception:  # noqa: BLE001 - tidak wajib
+        return "127.0.0.1"
 
 from rich.console import Console
 
@@ -276,7 +291,12 @@ def run_web(args, console: Console) -> int:
         console.print(f"[red]Tidak bisa bind {host}:{port} — {e}[/red]")
         console.print("Coba port lain: [bold]hagema serve --port 9000[/bold]")
         return 1
-    url = f"http://127.0.0.1:{port}" if host in ("127.0.0.1", "localhost") else f"http://{host}:{port}"
+    if host in ("127.0.0.1", "localhost"):
+        url = f"http://127.0.0.1:{port}"
+    elif host == "0.0.0.0":
+        url = f"http://{_lan_ip()}:{port}"  # IP LAN yang bisa dibuka dari HP
+    else:
+        url = f"http://{host}:{port}"
 
     console.print(f"[bold cyan]hagema web[/bold cyan] — {url}")
     console.print(f"Provider: [bold]{bridge.pm.current_name}[/bold] → {bridge.pm.current.cfg.model}")
