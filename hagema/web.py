@@ -73,6 +73,10 @@ PAGE = """<!doctype html>
   #reset { background:var(--panel); color:var(--muted); border:1px solid var(--border);
            padding:12px 14px; }
   #reset:hover { color:#f85149; border-color:#f85149; filter:none; }
+  select { background:var(--panel); color:var(--text); border:1px solid var(--border);
+          border-radius:10px; padding:12px 8px; font-size:13px; outline:none;
+          max-width:150px; }
+  select:focus { border-color:var(--accent); }
   input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(47,129,247,.2); }
   button { background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff;
            border:none; border-radius:10px; padding:12px 20px; font-size:14px;
@@ -91,6 +95,9 @@ PAGE = """<!doctype html>
 </header>
 <main id="chat"></main>
 <footer>
+  <select id="agent" title="Pilih agen yang menjalankan pesan">
+    <option value="">🐝 hagema (default)</option>
+  </select>
   <input id="inp" placeholder="Tulis pesan… (Enter untuk kirim)" autocomplete="off">
   <button id="reset" title="Bersihkan sesi">Reset</button>
   <button id="send">Kirim</button>
@@ -99,9 +106,28 @@ PAGE = """<!doctype html>
 const chat = document.getElementById('chat');
 const inp = document.getElementById('inp');
 const send = document.getElementById('send');
+const agentSel = document.getElementById('agent');
 const statusEl = document.getElementById('status');
 let token = localStorage.getItem('hagema_token') || '';
 const authHeaders = () => token ? { 'Authorization': 'Bearer ' + token } : {};
+
+// isi dropdown dengan CLI agent yang terpasang (opencode, hermes, dll)
+async function loadAgents() {
+  try {
+    const res = await fetch('/api/agents', { headers: authHeaders() });
+    if (!res.ok) return;
+    const d = await res.json();
+    agentSel.innerHTML = '<option value="">🐝 hagema (default)</option>';
+    for (const a of d.agents) {
+      if (!a.installed) continue;
+      const o = document.createElement('option');
+      o.value = a.name;
+      o.textContent = a.name + (a.version ? ' v' + a.version : '');
+      agentSel.appendChild(o);
+    }
+  } catch (_) { /* abaikan */ }
+}
+loadAgents();
 
 function addMsg(text, cls) {
   const el = document.createElement('div');
@@ -139,14 +165,17 @@ async function sendMessage() {
   const text = inp.value.trim();
   if (!text) return;
   inp.value = '';
-  addMsg(text, 'user');
+  const agent = agentSel.value;
+  addMsg((agent ? '[' + agent + '] ' : '') + text, 'user');
   const ty = document.createElement('div');
-  ty.className = 'typing'; ty.textContent = '🤖 memikirkan…'; chat.appendChild(ty);
+  ty.className = 'typing'; ty.textContent = '🤖 ' + (agent || 'hagema') + ' memikirkan…'; chat.appendChild(ty);
   send.disabled = true;
   try {
-    const data = await api('/api/chat', { message: text });
+    const data = agent
+      ? await api('/api/agents/run', { name: agent, prompt: text })
+      : await api('/api/chat', { message: text });
     ty.remove();
-    addMsg(data.reply, data.reply.startsWith('ERROR') ? 'bot err' : 'bot');
+    addMsg(data.reply, (data.reply.startsWith('ERROR') || data.reply.includes('DITOLAK')) ? 'bot err' : 'bot');
   } catch (e) {
     ty.remove();
     addMsg('Gagal terhubung: ' + e.message, 'bot err');
@@ -271,6 +300,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._unauthorized()
             with self.lock:
                 reply = self.bridge.reset()
+            return self._json(200, {"reply": reply})
+        if parsed.path == "/api/agents/run":
+            if not self._authorized():
+                return self._unauthorized()
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length).decode("utf-8")
+                payload = json.loads(raw)
+                name = str(payload.get("name", "")).strip()
+                prompt = str(payload.get("prompt", "")).strip()
+            except Exception:  # noqa: BLE001 - body tidak valid
+                return self._json(400, {"error": "body JSON tidak valid"})
+            if not name or not prompt:
+                return self._json(400, {"error": "name & prompt wajib diisi"})
+            # eksekusi CLI agent lain TIDAK menyentuh sesi bersama → tanpa lock
+            reply = self.bridge.run_cli_agent(name, prompt)
             return self._json(200, {"reply": reply})
         if parsed.path != "/api/chat":
             return self._json(404, {"error": "not found"})

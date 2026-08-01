@@ -324,6 +324,17 @@ class HeadlessBridgeTest(unittest.TestCase):
         result = self.bridge.switch("tidak-ada")
         self.assertIn("tidak ada", result)
 
+    def test_run_cli_agent_denied_without_yes(self):
+        reply = self.bridge.run_cli_agent("opencode", "halo")
+        self.assertIn("DITOLAK", reply)
+
+    def test_run_cli_agent_with_yes_unknown_agent(self):
+        from hagema.remote import HeadlessBridge
+        b = HeadlessBridge(None, self.pm, self.session, self.skills, self.memory,
+                           self.agent, yes=True)
+        reply = b.run_cli_agent("agent-tidak-ada", "halo")
+        self.assertIn("tidak terpasang", reply)
+
     def test_usage_text(self):
         self.bridge.chat("halo")
         text = self.bridge.usage()
@@ -425,6 +436,17 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIsInstance(body["agents"], list)
 
+    def test_agents_run_endpoint_denied_without_yes(self):
+        # bridge di test ini dibangun tanpa --yes → eksekusi agent lain DITOLAK
+        status, body = self._request("/api/agents/run", {"name": "opencode", "prompt": "halo"})
+        self.assertEqual(status, 200)
+        self.assertIn("DITOLAK", body["reply"])
+
+    def test_agents_run_endpoint_validation(self):
+        status, body = self._request("/api/agents/run", {"name": "", "prompt": ""})
+        self.assertEqual(status, 400)
+        self.assertIn("wajib", body["error"])
+
 
 class HistoryRecorderTest(unittest.TestCase):
     """Riwayat percakapan untuk bahan belajar AI."""
@@ -489,6 +511,33 @@ class AgentsDetectTest(unittest.TestCase):
         from hagema.agents import agents_text
         text = agents_text()
         self.assertIn("CLI AGENT", text)
+
+    def test_run_cli_agent_unknown(self):
+        from hagema.agents import run_cli_agent
+        ok, out = run_cli_agent("agent-tidak-ada", "halo")
+        self.assertFalse(ok)
+        self.assertIn("tidak terpasang", out)
+
+    def test_run_cli_agent_empty(self):
+        from hagema.agents import run_cli_agent
+        ok, out = run_cli_agent("opencode", "   ")
+        self.assertFalse(ok)
+        self.assertIn("Pakai", out)
+
+    def test_run_cli_agent_no_one_shot_mode(self):
+        """Binary yang terpasang tapi bukan agent dikenal → ditolak dengan pesan jelas."""
+        from hagema.agents import run_cli_agent, runnable_agents
+        ok, out = run_cli_agent("python3", "halo")
+        self.assertFalse(ok)
+        self.assertIn("tidak punya mode one-shot", out)
+        self.assertIsInstance(runnable_agents(), list)
+
+    def test_runnable_agents_only_installed_with_flags(self):
+        from hagema.agents import RUN_FLAGS, runnable_agents
+        names = runnable_agents()
+        self.assertIsInstance(names, list)
+        for n in names:
+            self.assertIn(n, RUN_FLAGS)
 
 
 class AutoMemoryTest(unittest.TestCase):

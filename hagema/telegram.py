@@ -33,6 +33,7 @@ HELP = (
     "/usage — token & biaya\n"
     "/providers — daftar provider\n"
     "/agents — CLI agent yang terpasang di mesin\n"
+    "/agent <nama> <prompt> — jalankan CLI agent lain (mis. opencode)\n"
     "/switch <nama> — pindah provider\n"
     "/reset — bersihkan sesi\n"
     "\nSelain itu, kirim pesan bebas untuk ngobrol dengan agen."
@@ -154,6 +155,16 @@ def _poll_loop(token: str, allow: List[int], bridge, console: Console,
                             f"⛔ Kamu belum diizinkan. chat_id-mu: {chat_id}\n"
                             f"Restart bot dengan: hagema telegram --allow {chat_id}",
                         )
+                        continue
+
+                    # /agent menjalankan CLI agent lain (opencode/hermes/dll) yang
+                    # TIDAK menyentuh sesi bersama — jalankan TANPA chat_lock supaya
+                    # run yang lama (hingga timeout) tidak memblokir web controller.
+                    if _command(text) == "/agent":
+                        parts = (text or "").split(maxsplit=1)
+                        rest = parts[1].strip() if len(parts) > 1 else ""
+                        name, _, prompt = rest.partition(" ")
+                        _send(token, chat_id, bridge.run_cli_agent(name, prompt))
                         continue
 
                     # Mode server: semua operasi bridge (chat, switch, reset) dipakai

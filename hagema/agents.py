@@ -131,3 +131,57 @@ def install_command_for(name: str) -> Optional[str]:
     if not info:
         return None
     return info[1][0] if info[1] else None
+
+
+# Mode one-shot (non-interaktif) per agent — dipakai `run_cli_agent`.
+# Prompt disisipkan sebagai argumen terakhir.
+RUN_FLAGS: Dict[str, list] = {
+    "opencode": ["run"],
+    "claude": ["-p"],
+    "codex": ["exec"],
+    "gemini": ["-p"],
+    "aider": ["--message"],
+    "hermes": ["-z"],
+    "aichat": [],
+}
+
+
+def run_cli_agent(name: str, prompt: str, cwd: str = ".", timeout: int = 180) -> tuple:
+    """Jalankan prompt sekali-jalan pada CLI agent; kembalikan (ok, output).
+
+    Contoh: run_cli_agent("opencode", "refactor main.go") → `opencode run "..."`.
+    Memakai mode non-interaktif masing-masing agent (opencode run / claude -p /
+    codex exec / gemini -p / aider --message / hermes -z).
+    """
+    import subprocess
+
+    name = (name or "").strip().lower()
+    prompt = (prompt or "").strip()
+    if not name or not prompt:
+        return False, "Pakai: <nama-agent> <prompt>"
+    if not shutil.which(name):
+        return False, f"Agent '{name}' tidak terpasang. Install dulu: hagema agents install {name}"
+    flags = RUN_FLAGS.get(name)
+    if flags is None:
+        return False, f"Agent '{name}' tidak punya mode one-shot yang dikenal."
+    cmd = [name, *flags, prompt]
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"Timeout setelah {timeout}s — agent '{name}' terlalu lama merespons."
+    except OSError as e:
+        return False, f"Gagal menjalankan {name}: {e}"
+    out = (proc.stdout or "").strip()
+    err = (proc.stderr or "").strip()
+    if proc.returncode != 0:
+        detail = err or out or f"exit {proc.returncode}"
+        return False, f"{name} gagal (exit {proc.returncode}):\n{detail[:1500]}"
+    text = out or err or "(tanpa output)"
+    return True, text[:8000]
+
+
+def runnable_agents() -> List[str]:
+    """Nama agent yang terpasang DAN punya mode one-shot (bisa dijalankan)."""
+    return [a.name for a in detect_agents() if a.installed and a.name in RUN_FLAGS]

@@ -168,6 +168,22 @@ hagema agents --yes install opencode  # install tanpa konfirmasi
 
 Bisa juga dikontrol dari HP: di Telegram ketik `/agents` untuk melihat status CLI agent di laptop/PC, atau buka endpoint web `GET /api/agents` (token opsional).
 
+### Jalankan CLI agent lain sekali-jalan 🚀
+
+Setiap agent yang terpasang dan punya mode non-interaktif bisa dijalankan langsung:
+
+```bash
+hagema agents --agent opencode "refactor main.go"
+hagema agents --agent hermes "ringkas repo ini"
+hagema agents --agent gemini "jelaskan apa itu failover"
+```
+
+**Dari HP lewat web controller:** dropdown di UI chat untuk memilih agent (opencode/hermes/dll), lalu kirim prompt — diproses oleh agent itu (`opencode run`, `hermes -z`, `gemini -p`, dll).
+
+**Dari HP lewat Telegram:** `/agent opencode refactor main.go`
+
+> ⚠️ **Keamanan:** dari mode remote (web/Telegram), menjalankan CLI agent lain **DITOLAK** kecuali server/web dijalankan dengan flag `--yes` (mis. `hagema serve --yes` / `hagema server --yes`). Ini mencegah orang lain memakai mesinmu dari HP tanpa izin.
+
 ## Riwayat lengkap untuk bahan belajar AI 📚
 
 Semua percakapan (CLI, web, Telegram, server) direkam **sedetail mungkin** ke `~/.hagema/history/<YYYY-MM-DD>/<sesi>.jsonl`:

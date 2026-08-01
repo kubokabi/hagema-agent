@@ -53,19 +53,42 @@ def build_bridge(
     )
     history = HistoryRecorder(cfg.history_dir, session.path.stem, source=source)
     agent = Agent(cfg, pm, session, executor, skills, memory, history=history)
-    return HeadlessBridge(cfg, pm, session, skills, memory, agent)
+    return HeadlessBridge(cfg, pm, session, skills, memory, agent, yes=yes, cwd=Path(cwd))
 
 
 class HeadlessBridge:
     """API headless untuk remote access (web / Telegram)."""
 
-    def __init__(self, cfg, pm, session, skills, memory, agent):
+    def __init__(self, cfg, pm, session, skills, memory, agent, yes: bool = False,
+                 cwd: Optional[Path] = None):
         self.cfg = cfg
         self.pm = pm
         self.session = session
         self.skills = skills
         self.memory = memory
         self.agent = agent
+        self.yes = yes
+        self.cwd = cwd if cwd is not None else Path(".")
+
+    def run_cli_agent(self, name: str, prompt: str) -> str:
+        """Jalankan CLI agent lain (opencode/hermes/dll) lewat remote.
+
+        Keamanan: mode remote menolak eksekusi kecuali diberi `--yes`.
+        """
+        name = (name or "").strip().lower()
+        prompt = (prompt or "").strip()
+        if not name or not prompt:
+            return "Pakai: <nama-agent> <prompt>"
+        if not self.yes:
+            return (
+                "⛔ DITOLAK: kontrol CLI agent lain dari remote butuh izin. "
+                "Jalankan server/web dengan flag --yes untuk mengizinkan."
+            )
+        from .agents import run_cli_agent as _run
+        ok, out = _run(name, prompt, cwd=str(self.cwd))
+        if not ok:
+            return f"ERROR: {out}"
+        return out
 
     def chat(self, text: str) -> str:
         text = (text or "").strip()

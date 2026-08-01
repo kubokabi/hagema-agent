@@ -529,6 +529,13 @@ def cmd_models(args, console) -> int:
 def cmd_agents(args, console) -> int:
     from .agents import KNOWN_AGENTS, detect_agents, install_command_for
 
+    if args.run_agent:
+        # jalankan CLI agent lain sekali-jalan (mis. opencode)
+        from .agents import run_cli_agent
+        ok, out = run_cli_agent(args.run_agent, args.run_prompt or "", cwd=args.cwd)
+        console.print(Markdown(out) if ok else f"[red]{out}[/red]")
+        return 0 if ok else 1
+
     if args.install:
         name = args.install.lower()
         info = KNOWN_AGENTS.get(name)
@@ -700,8 +707,12 @@ def main(argv=None) -> int:
 
     # agents
     p_agents = sub.add_parser("agents", parents=[make_common_parser()],
-                              help="Deteksi CLI agent yang terpasang di mesin ini")
+                              help="Deteksi / jalankan CLI agent yang terpasang di mesin ini")
     p_agents.add_argument("install", nargs="?", help="Nama agent yang mau diinstall")
+    p_agents.add_argument("--agent", dest="run_agent", default=None,
+                          help="Jalankan CLI agent lain sekali-jalan (mis. opencode)")
+    p_agents.add_argument("--prompt", dest="run_prompt", default=None,
+                          help="Prompt untuk --agent")
 
     # serve (web app untuk kontrol dari HP/browser)
     p_serve = sub.add_parser("serve", parents=[make_common_parser()],
