@@ -131,7 +131,7 @@ Lalu di REPL: `/skills` dan `/skill ssmi-sql`.
 ```
 hagema-agent/
 ├── main.py                 # entry point
-├── config.yaml             # provider & failover order
+├── config.example.yaml     # template provider & failover order
 ├── hagema/
 │   ├── config.py           # loader config + .env
 │   ├── providers.py        # OpenAI-compatible provider + error classifier + mock
