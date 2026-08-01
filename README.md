@@ -56,6 +56,8 @@ hagema                    # mulai chat
 
 Wizard setup menulis `~/.hagema/config.yaml` + `~/.hagema/.env` otomatis. **Kamu tidak perlu mengedit file apapun secara manual.**
 
+> 📄 `config.example.yaml` di repo ini adalah **template referensi** untuk edit manual — salin ke `~/.hagema/config.yaml` (atau cukup jalankan `hagema setup`, yang otomatis menuliskannya).
+
 > **Kenapa API key di `.env`, bukan di config?**
 > Model, base_url, dan provider diatur di `config.yaml` — itu bukan rahasia dan boleh di-commit. Yang disimpan di `.env` HANYA API key, karena key adalah secret yang tidak boleh ikut ke git. Ini praktik keamanan standar (12-factor). Dengan `hagema setup`, kamu nggak perlu sentuh `.env` manual — wizard yang nulis.
 
