@@ -11,8 +11,28 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+# Cache hasil deteksi (TTL 30 detik) — web UI memanggil detect_agents() di tiap
+# pesan; tanpa cache, tiap panggilan mem-probe versi dengan subprocess (lambat).
+
+_CACHE: Dict[str, object] = {}
+_CACHE_TTL = 30.0
+
+
+def _cached_or_refresh() -> List["AgentInfo"]:
+    now = time.time()
+    hit = _CACHE.get("data")
+    ts = _CACHE.get("ts", 0)
+    if hit is not None and now - ts < _CACHE_TTL:
+        return hit
+    fresh = detect_agents()
+    _CACHE["data"] = fresh
+    _CACHE["ts"] = now
+    return fresh
+
 
 # Nama binary -> (label, daftar perintah install yang disarankan)
 KNOWN_AGENTS: Dict[str, tuple] = {
@@ -108,8 +128,8 @@ def detect_agents(extra: Optional[List[str]] = None) -> List[AgentInfo]:
 
 
 def agents_text() -> str:
-    """Teks ringkas untuk ditampilkan di Telegram / CLI."""
-    detected = detect_agents()
+    """Teks ringkas untuk ditampilkan di Telegram / CLI (memakai cache 30 detik)."""
+    detected = _cached_or_refresh()
     found = [a for a in detected if a.installed]
     missing = [a for a in detected if not a.installed]
     lines = ["🤖 CLI AGENT DI MESIN INI"]
@@ -184,4 +204,4 @@ def run_cli_agent(name: str, prompt: str, cwd: str = ".", timeout: int = 180) ->
 
 def runnable_agents() -> List[str]:
     """Nama agent yang terpasang DAN punya mode one-shot (bisa dijalankan)."""
-    return [a.name for a in detect_agents() if a.installed and a.name in RUN_FLAGS]
+    return [a.name for a in _cached_or_refresh() if a.installed and a.name in RUN_FLAGS]

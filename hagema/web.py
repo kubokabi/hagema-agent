@@ -280,14 +280,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/agents":
             if not self._authorized():
                 return self._unauthorized()
-            from .agents import detect_agents
+            from .agents import _cached_or_refresh
             self._json(
                 200,
                 {
                     "agents": [
                         {"name": a.name, "label": a.label, "installed": a.installed,
                          "version": a.version, "path": a.path}
-                        for a in detect_agents()
+                        for a in _cached_or_refresh()
                     ]
                 },
             )
