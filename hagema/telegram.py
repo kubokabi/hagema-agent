@@ -123,34 +123,38 @@ def run_telegram(args, console: Console) -> int:
                 if not chat_id:
                     continue
 
-                if chat_id not in allow:
-                    _send(
-                        token, chat_id,
-                        f"⛔ Kamu belum diizinkan. chat_id-mu: {chat_id}\n"
-                        f"Restart bot dengan: hagema telegram --allow {chat_id}",
-                    )
-                    continue
+                try:
+                    if chat_id not in allow:
+                        _send(
+                            token, chat_id,
+                            f"⛔ Kamu belum diizinkan. chat_id-mu: {chat_id}\n"
+                            f"Restart bot dengan: hagema telegram --allow {chat_id}",
+                        )
+                        continue
 
-                cmd = _command(text)
-                if cmd == "/start":
-                    _send(token, chat_id, "🐝 Selamat datang di hagema-agent!\n" + HELP)
-                elif cmd == "/help":
-                    _send(token, chat_id, HELP)
-                elif cmd == "/status":
-                    _send(token, chat_id, bridge.status())
-                elif cmd == "/usage":
-                    _send(token, chat_id, bridge.usage())
-                elif cmd == "/providers":
-                    _send(token, chat_id, bridge.providers_text())
-                elif cmd == "/switch":
-                    target = (text or "").split(maxsplit=1)[1] if len((text or "").split()) > 1 else ""
-                    _send(token, chat_id, bridge.switch(target) if target else "Pakai: /switch <nama>")
-                elif cmd == "/reset":
-                    _send(token, chat_id, bridge.reset())
-                else:
-                    console.print(f"[dim]chat {chat_id}: {text[:60]}[/dim]")
-                    reply = bridge.chat(text)
-                    _send(token, chat_id, reply)
+                    cmd = _command(text)
+                    if cmd == "/start":
+                        _send(token, chat_id, "🐝 Selamat datang di hagema-agent!\n" + HELP)
+                    elif cmd == "/help":
+                        _send(token, chat_id, HELP)
+                    elif cmd == "/status":
+                        _send(token, chat_id, bridge.status())
+                    elif cmd == "/usage":
+                        _send(token, chat_id, bridge.usage())
+                    elif cmd == "/providers":
+                        _send(token, chat_id, bridge.providers_text())
+                    elif cmd == "/switch":
+                        target = (text or "").split(maxsplit=1)[1] if len((text or "").split()) > 1 else ""
+                        _send(token, chat_id, bridge.switch(target) if target else "Pakai: /switch <nama>")
+                    elif cmd == "/reset":
+                        _send(token, chat_id, bridge.reset())
+                    else:
+                        console.print(f"[dim]chat {chat_id}: {text[:60]}[/dim]")
+                        reply = bridge.chat(text)
+                        _send(token, chat_id, reply)
+                except Exception as e:  # noqa: BLE001 - satu pesan gagal jangan matikan bot
+                    console.print(f"[red]Gagal proses pesan dari {chat_id}: {e}[/red]")
+                    continue
     except KeyboardInterrupt:
         console.print("\nTelegram bot berhenti.")
     return 0

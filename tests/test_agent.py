@@ -335,7 +335,11 @@ class WebServerTest(unittest.TestCase):
                 return resp.status, _json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             # urlopen melempar HTTPError untuk status 4xx/5xx — ubah jadi (status, body)
-            return e.code, _json.loads(e.read().decode() or b"{}")
+            try:
+                body = _json.loads(e.read().decode() or b"{}")
+            except Exception:  # noqa: BLE001 - body error boleh gagal dibaca (koneksi reset)
+                body = {}
+            return e.code, body
 
     def test_status(self):
         status, body = self._request("/api/status")
