@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hagema-agent"
+version = "1.0.0"
+description = "Agen AI otonom ala Hermes Agent: cross-provider failover dengan rekap otomatis saat token habis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Ilham Romadhani" }]
+dependencies = [
+    "openai>=1.40.0",
+    "PyYAML>=6.0.2",
+    "rich>=13.0",
+]
+
+[project.scripts]
+hagema = "hagema.cli:main"
+
+[tool.setuptools]
+packages = ["hagema"]

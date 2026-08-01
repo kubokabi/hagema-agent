@@ -1,0 +1,49 @@
+# ============================================================
+# hagema-agent — konfigurasi utama
+# Semua provider harus OpenAI-compatible (chat completions API)
+# ============================================================
+
+# Provider yang dipakai saat startup
+default_provider: deepseek
+
+# Urutan failover otomatis: kalau provider aktif kena quota/rate-limit/
+# konteks penuh, agen akan rekap sesi lalu pindah ke provider berikutnya.
+failover_order: [deepseek, openrouter, openai, ollama]
+
+providers:
+  deepseek:
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+    context_limit: 65536
+    price_per_1m_input: 0.27      # USD per 1M token (harga DeepSeek chat)
+    price_per_1m_output: 1.10
+
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-chat-v3-0324
+    api_key_env: OPENROUTER_API_KEY
+    context_limit: 128000
+    price_per_1m_input: 0.25
+    price_per_1m_output: 0.35
+
+  openai:
+    base_url: https://api.openai.com/v1
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    context_limit: 128000
+    price_per_1m_input: 0.15
+    price_per_1m_output: 0.60
+
+  ollama:
+    base_url: http://localhost:11434/v1
+    model: qwen3:32b
+    api_key_env: ""                # lokal, tidak butuh key
+    context_limit: 65536
+    price_per_1m_input: 0.0
+    price_per_1m_output: 0.0
+
+# Lokasi penyimpanan
+sessions_dir: ~/.hagema/sessions
+skills_dir: ~/.hagema/skills
+memory_file: ~/.hagema/MEMORY.md
