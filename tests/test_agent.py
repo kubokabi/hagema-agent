@@ -250,5 +250,43 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(os.environ.get("DEEPSEEK_API_KEY"), "sk-test")
 
 
+class HeadlessBridgeTest(unittest.TestCase):
+    """Bridge headless (dipakai web & Telegram bot) harus aman tanpa console."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.session = Session(self.tmp / "b.jsonl")
+        self.skills = SkillsRegistry(self.tmp / "skills")
+        self.memory = Memory(self.tmp / "MEMORY.md")
+        self.executor = ToolExecutor(cwd=self.tmp, confirm=lambda _c: False)
+        self.pm = make_manager({"m": "normal"}, "m", ["m"])
+        self.agent = Agent(None, self.pm, self.session, self.executor, self.skills, self.memory)
+        from hagema.remote import HeadlessBridge
+        self.bridge = HeadlessBridge(None, self.pm, self.session, self.skills, self.memory, self.agent)
+
+    def test_chat(self):
+        reply = self.bridge.chat("halo")
+        self.assertIn("Mock[m]", reply)
+
+    def test_chat_empty(self):
+        self.assertEqual(self.bridge.chat("   "), "(pesan kosong)")
+
+    def test_reset(self):
+        self.bridge.chat("halo")
+        self.bridge.reset()
+        self.assertEqual(self.session.messages, [])
+
+    def test_switch(self):
+        result = self.bridge.switch("m")
+        self.assertIn("→ m", result)
+        result = self.bridge.switch("tidak-ada")
+        self.assertIn("tidak ada", result)
+
+    def test_usage_text(self):
+        self.bridge.chat("halo")
+        text = self.bridge.usage()
+        self.assertIn("TOTAL", text)
+
+
 if __name__ == "__main__":
     unittest.main()

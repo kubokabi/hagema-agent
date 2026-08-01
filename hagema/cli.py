@@ -575,6 +575,25 @@ def main(argv=None) -> int:
     sub.add_parser("doctor", parents=[make_common_parser()],
                    help="Periksa instalasi & konfigurasi")
 
+    # serve (web app untuk kontrol dari HP/browser)
+    p_serve = sub.add_parser("serve", parents=[make_common_parser()],
+                             help="Jalankan web app lokal untuk kontrol dari HP")
+    p_serve.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1; gunakan 0.0.0.0 untuk LAN)")
+    p_serve.add_argument("--port", type=int, default=8765, help="Port (default: 8765)")
+    p_serve.add_argument("--token", default=None, help="Opsional: token akses Bearer")
+    p_serve.add_argument("--session", default=None, help="Nama sesi (default: web)")
+    p_serve.add_argument("--cwd", default=os.getcwd(), help="Working directory untuk tools")
+    p_serve.add_argument("--yes", action="store_true", help="Auto-approve perintah terminal")
+
+    # telegram (bot untuk kontrol dari HP)
+    p_tg = sub.add_parser("telegram", parents=[make_common_parser()],
+                          help="Jalankan Telegram bot untuk kontrol dari HP")
+    p_tg.add_argument("--token", default=None, help="Token bot Telegram (atau env HAGEMA_TELEGRAM_TOKEN)")
+    p_tg.add_argument("--allow", default=None, help="Daftar chat_id yang diizinkan, pisahkan koma (contoh: 123,456)")
+    p_tg.add_argument("--session", default=None, help="Nama sesi (default: telegram)")
+    p_tg.add_argument("--cwd", default=os.getcwd(), help="Working directory untuk tools")
+    p_tg.add_argument("--yes", action="store_true", help="Auto-approve perintah terminal")
+
     args = parser.parse_args(argv)
     console = Console()
 
@@ -586,6 +605,12 @@ def main(argv=None) -> int:
         return cmd_models(args, console)
     if args.command == "doctor":
         return cmd_doctor(args, console)
+    if args.command == "serve":
+        from .web import run_web
+        return run_web(args, console)
+    if args.command == "telegram":
+        from .telegram import run_telegram
+        return run_telegram(args, console)
     return cmd_chat(args, console)
 
 

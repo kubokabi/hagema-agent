@@ -150,6 +150,44 @@ hagema-agent/
 └── tests/test_agent.py     # unit test
 ```
 
+## Kontrol dari HP 📱
+
+Tiga cara memakai hagema dari handphone:
+
+### Opsi 1 — Telegram bot (paling praktis) 🐦
+
+```bash
+# 1. Buat bot di Telegram: chat @BotFather → /newbot → simpan token
+# 2. Jalankan bot (token juga bisa via env HAGEMA_TELEGRAM_TOKEN)
+hagema telegram --token 123456:ABC-DEF...
+
+# 3. Di Telegram, kirim pesan apa pun ke bot-mu.
+#    Bot akan menolak dan memberi tahu chat_id-mu → restart dengan izin:
+hagema telegram --token 123456:ABC-DEF... --allow <chat_id>
+```
+
+Perintah di bot: `/status`, `/usage`, `/providers`, `/switch <nama>`, `/reset`, `/help` — atau kirim pesan bebas untuk ngobrol.
+
+### Opsi 2 — Web app di browser 🌐
+
+```bash
+hagema serve                         # buka http://127.0.0.1:8765 di browser
+hagema serve --host 0.0.0.0 --token rahasiaku   # akses dari HP se-LAN + token
+```
+
+Untuk akses dari luar rumah dengan aman: pasang [Tailscale](https://tailscale.com) di Mac & HP, lalu buka `http://<ip-tailscale>:8765` di browser HP.
+
+### Opsi 3 — SSH dari HP 🔐
+
+Install Tailscale + aplikasi SSH (Termius/Blink) di HP, lalu SSH ke Mac:
+
+```bash
+ssh user@<ip-tailscale>   # dari Termius/Blink di HP
+hagema                    # CLI penuh, sama seperti di Mac
+```
+
+> Semua mode jarak jauh menolak perintah terminal kecuali diberi `--yes` — pastikan hanya kamu yang punya aksesnya.
+
 ## Test
 
 ```bash
