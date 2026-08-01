@@ -96,7 +96,14 @@ class Provider:
                 kwargs["tool_choice"] = "auto"
 
             resp = self._client.chat.completions.create(**kwargs)
-            msg = resp.choices[0].message
+            choices = resp.choices or []
+            if not choices:
+                # Provider bisa mengembalikan 200 dengan choices:null (mis. error
+                # payload OpenRouter) — jangan crash dengan TypeError mentah.
+                raise ProviderError(
+                    "api", f"Respons tanpa choices dari provider '{self.name}'", self.name
+                )
+            msg = choices[0].message
             usage = getattr(resp, "usage", None)
 
             return {

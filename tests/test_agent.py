@@ -87,6 +87,33 @@ class AgentCoreTest(unittest.TestCase):
         self.assertEqual(pm.current_name, "a")
         self.assertIn("ERROR", reply)
 
+    def test_choices_none_raises_clear_error(self):
+        """Respons 200 dengan choices:null harus jadi ProviderError jelas, bukan TypeError mentah."""
+        from hagema.providers import Provider, ProviderConfig, ProviderError
+
+        class FakeResp:
+            choices = None
+
+        class _FakeChat:
+            def create(self, **kwargs):
+                return FakeResp()
+
+        class FakeCompletions:
+            def __init__(self):
+                self.chat = _FakeChat()
+
+        class FakeClient:
+            def __init__(self):
+                self.completions = FakeCompletions()
+
+        p = Provider.__new__(Provider)
+        p.cfg = ProviderConfig(name="openrouter", base_url="x", model="m", api_key_env="")
+        p._client = FakeClient()
+        with self.assertRaises(ProviderError) as ctx:
+            p.chat([{"role": "user", "content": "halo"}])
+        self.assertIn("tanpa choices", str(ctx.exception))
+        self.assertEqual(ctx.exception.provider, "openrouter")
+
 
 class SessionTest(unittest.TestCase):
     def setUp(self):

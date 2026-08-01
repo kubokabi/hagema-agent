@@ -118,6 +118,8 @@ class Agent:
                 if retries > 0 and self._failover(err):
                     return self._loop(retries - 1)
                 return f"[ERROR dari provider '{err.provider}'] {err}"
+            except Exception as e:  # noqa: BLE001 - bug tak terduga jangan matikan sesi
+                return f"[ERROR] {type(e).__name__}: {e}"
 
             self._track_usage(result)
             self.session.add({k: v for k, v in result.items() if k != "usage"})
