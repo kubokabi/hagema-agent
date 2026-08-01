@@ -94,17 +94,17 @@ class AgentCoreTest(unittest.TestCase):
         class FakeResp:
             choices = None
 
-        class _FakeChat:
+        class _FakeCompletions:
             def create(self, **kwargs):
                 return FakeResp()
 
-        class FakeCompletions:
+        class _FakeChat:
             def __init__(self):
-                self.chat = _FakeChat()
+                self.completions = _FakeCompletions()
 
         class FakeClient:
             def __init__(self):
-                self.completions = FakeCompletions()
+                self.chat = _FakeChat()
 
         p = Provider.__new__(Provider)
         p.cfg = ProviderConfig(name="openrouter", base_url="x", model="m", api_key_env="")
