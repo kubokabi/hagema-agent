@@ -198,6 +198,45 @@ class ConfigTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             cfg.set_model("tidak-ada", "x")
 
+    def test_set_model_roundtrip(self):
+        """set_model harus persist saat config disimpan & dimuat ulang."""
+        raw = {
+            "default_provider": "deepseek",
+            "providers": {
+                "deepseek": {"base_url": "x", "model": "deepseek-chat", "api_key_env": "K"},
+            },
+            "failover_order": ["deepseek"],
+        }
+        cfg = Config(raw)
+        cfg.set_model("deepseek", "deepseek-reasoner")
+        cfg.save(self.cfg_path)
+        reloaded = Config.load(self.cfg_path)
+        self.assertEqual(reloaded.providers["deepseek"].model, "deepseek-reasoner")
+
+    def test_cli_model_two_positionals(self):
+        """hagema model <provider> <model> harus parse dua argumen posisi."""
+        from hagema.cli import main
+
+        raw = {
+            "default_provider": "ollama",
+            "providers": {
+                "ollama": {"base_url": "x", "model": "qwen3:32b", "api_key_env": ""},
+            },
+            "failover_order": ["ollama"],
+        }
+        Config(raw).save(self.cfg_path)
+
+        # satu argumen: ganti provider default saja
+        code = main(["model", "ollama", "--config", str(self.cfg_path), "--env", str(self.tmp / ".env")])
+        self.assertEqual(code, 0)
+
+        # dua argumen: ganti provider + model
+        code = main(["model", "ollama", "qwen3:14b", "--config", str(self.cfg_path), "--env", str(self.tmp / ".env")])
+        self.assertEqual(code, 0)
+        reloaded = Config.load(self.cfg_path)
+        self.assertEqual(reloaded.providers["ollama"].model, "qwen3:14b")
+        self.assertEqual(reloaded.default_provider, "ollama")
+
     def test_mock_list_models(self):
         pm = make_manager({"m": "normal"}, "m", ["m"])
         models = pm.current.list_models()

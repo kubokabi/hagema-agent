@@ -216,6 +216,13 @@ def handle_command(line: str, ctx) -> bool:
             console.print(f"  {marker} {name} → {p.cfg.model} [{key_state}]")
         return True
     if cmd == "/models":
+        if not pm.current.cfg.has_key(os.environ):
+            console.print(
+                f"[yellow]⚠ Provider '{pm.current_name}' belum punya API key "
+                f"(isi di .env: {pm.current.cfg.api_key_env or '(tidak butuh key)'}). "
+                f"Jalankan [bold]hagema setup[/bold].[/yellow]"
+            )
+            return True
         try:
             models = pm.current.list_models()
         except Exception as e:  # noqa: BLE001 - tampilkan pesan mentah
@@ -223,9 +230,12 @@ def handle_command(line: str, ctx) -> bool:
             return True
         current = pm.current.cfg.model
         console.print(f"[bold]Model tersedia ({pm.current_name}):[/bold]")
-        for m in models:
+        for i, m in enumerate(models, 1):
             marker = "★ aktif" if m == current else "   "
             console.print(f"  {marker} {m}")
+            if i >= 30:
+                console.print(f"  … dan {len(models) - i} lainnya (total {len(models)})")
+                break
         console.print(f"Ganti model: [bold]hagema model {pm.current_name} <nama-model>[/bold]")
         return True
     if cmd == "/switch":
@@ -437,10 +447,20 @@ def cmd_models(args, console) -> int:
     pm = ProviderManager(cfg, os.environ)
 
     names = [args.provider] if args.provider else [pm.current_name]
+    failed = False
     for name in names:
         p = pm.get(name)
         if p is None:
             console.print(f"[red]Provider '{name}' tidak ada. Tersedia: {', '.join(pm.names())}[/red]")
+            failed = True
+            continue
+        if not p.cfg.has_key(os.environ):
+            console.print(
+                f"[yellow]⚠ Provider '{name}' belum punya API key "
+                f"(isi di .env: {p.cfg.api_key_env or '(tidak butuh key)'}). "
+                f"Jalankan [bold]hagema setup[/bold].[/yellow]"
+            )
+            failed = True
             continue
         current = p.cfg.model
         console.print(f"[bold]Mendeteksi model untuk {name}...[/bold]")
@@ -448,16 +468,21 @@ def cmd_models(args, console) -> int:
             models = p.list_models()
         except Exception as e:  # noqa: BLE001 - tampilkan pesan mentah
             console.print(f"[red]  Gagal: {e}[/red]")
+            failed = True
             continue
         if not models:
             console.print("  (tidak ada model terdeteksi)")
+            failed = True
             continue
         console.print(f"  {len(models)} model ditemukan:")
-        for m in models:
+        for i, m in enumerate(models, 1):
             marker = "★ aktif" if m == current else "   "
             console.print(f"  {marker} {m}")
+            if i >= 30:
+                console.print(f"  … dan {len(models) - i} lainnya (total {len(models)})")
+                break
         console.print(f"Ganti: [bold]hagema model {name} <nama-model>[/bold]\n")
-    return 0
+    return 1 if failed else 0
 
 
 # ============================================================
