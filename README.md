@@ -150,6 +150,21 @@ hagema-agent/
 └── tests/test_agent.py     # unit test
 ```
 
+## Mode Server Desktop (dashboard monitoring) 🖥️
+
+Di desktop (Mac/Windows), hagema bisa jalan sebagai **server** — terminal menampilkan **dashboard monitoring live**, sementara web controller dan/atau Telegram bot melayani kontrol dari HP:
+
+```bash
+hagema server                 # dashboard + web + telegram (sesuai config)
+hagema server --web           # paksa aktifkan web controller
+hagema server --telegram --tg-token TOKEN --allow 123,456
+hagema server --no-telegram   # matikan bot, web saja
+```
+
+Dashboard menampilkan: status web controller (URL, jumlah request, token), status Telegram (pesan terproses, chat_id diizinkan), provider aktif & status key, penggunaan token & biaya — di-refresh live tiap ~0.5 detik. Ctrl+C menghentikan server dengan rapi.
+
+> Setting web/Telegram bisa ditulis sekali di config lewat `hagema setup` (bagian "Akses dari HP"), lalu `hagema server` cukup dipanggil tanpa flag.
+
 ## Kontrol dari HP 📱
 
 Tiga cara memakai hagema dari handphone:
@@ -173,6 +188,7 @@ Perintah di bot: `/status`, `/usage`, `/providers`, `/switch <nama>`, `/reset`, 
 ```bash
 hagema serve                         # buka http://127.0.0.1:8765 di browser
 hagema serve --host 0.0.0.0 --token rahasiaku   # akses dari HP se-LAN + token
+hagema server --web --token rahasiaku           # server + dashboard + web controller
 ```
 
 Untuk akses dari luar rumah dengan aman: pasang [Tailscale](https://tailscale.com) di Mac & HP, lalu buka `http://<ip-tailscale>:8765` di browser HP.

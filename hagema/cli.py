@@ -371,6 +371,27 @@ def cmd_setup(args, console) -> int:
     raw["skills_dir"] = str(cfg_path.parent / "skills")
     raw["memory_file"] = str(cfg_path.parent / "MEMORY.md")
 
+    # ---- Akses jarak jauh (opsional) ----
+    console.print("\n[bold cyan]Akses dari HP (opsional):[/bold cyan]")
+    if Confirm.ask("Aktifkan web controller untuk [bold]hagema server[/bold]?", default=False):
+        web_host = Prompt.ask("  Web host", default="0.0.0.0")
+        web_port = Prompt.ask("  Web port", default="8765")
+        web_token = Prompt.ask("  Token akses web (kosongkan = tanpa token)", default="")
+        raw["web"] = {
+            "enabled": True,
+            "host": web_host,
+            "port": int(web_port) if str(web_port).isdigit() else 8765,
+            "token": web_token,
+        }
+    if Confirm.ask("Aktifkan Telegram bot untuk [bold]hagema server[/bold]?", default=False):
+        tg_token = Prompt.ask("  Token bot Telegram (dari @BotFather)", default="")
+        tg_allow = Prompt.ask("  chat_id yang diizinkan (pisahkan koma, boleh kosong dulu)", default="")
+        raw["telegram"] = {
+            "enabled": bool(tg_token),
+            "token": tg_token,
+            "allow": [int(x) for x in tg_allow.split(",") if x.strip().isdigit()],
+        }
+
     # Tulis file
     cfg = Config(raw)
     cfg.save(cfg_path)
@@ -513,6 +534,17 @@ def cmd_doctor(args, console) -> int:
     console.print(f"Skills: [bold]{skills_dir}[/bold] ({'ada' if skills_dir.exists() else 'belum ada'})")
     sessions_dir = cfg.sessions_dir
     console.print(f"Sessions: [bold]{sessions_dir}[/bold] ({'ada' if sessions_dir.exists() else 'belum ada'})")
+
+    console.print("[bold]Akses jarak jauh:[/bold]")
+    if cfg.web_enabled:
+        token_state = "token 🔒" if cfg.web_token else "tanpa token"
+        console.print(f"  ✓ Web controller: {cfg.web_host}:{cfg.web_port} [{token_state}]")
+    else:
+        console.print("  ✗ Web controller: nonaktif (atur di `hagema setup`)")
+    if cfg.tg_enabled:
+        console.print(f"  ✓ Telegram bot: aktif (izinkan: {cfg.tg_allow or 'belum ada'})")
+    else:
+        console.print("  ✗ Telegram bot: nonaktif (atur di `hagema setup`)")
     console.print("\nDoctor selesai ✓")
     return 0
 
@@ -536,6 +568,21 @@ def make_common_parser() -> argparse.ArgumentParser:
         help=f"Path file .env (default: {DEFAULT_CONFIG_PATH.parent / '.env'})",
     )
     return common
+
+
+def _server_flag_default(args, kind: str) -> bool:
+    """Default on/off untuk server dari config (kalau tidak diberi flag eksplisit)."""
+    try:
+        from .config import Config
+        cfg_path = Path(args.config)
+        if cfg_path.exists():
+            cfg = Config.load(cfg_path)
+            if kind == "web":
+                return cfg.web_enabled
+            return cfg.tg_enabled
+    except Exception:  # noqa: BLE001 - default aman
+        pass
+    return False
 
 
 def main(argv=None) -> int:
@@ -594,6 +641,22 @@ def main(argv=None) -> int:
     p_tg.add_argument("--cwd", default=os.getcwd(), help="Working directory untuk tools")
     p_tg.add_argument("--yes", action="store_true", help="Auto-approve perintah terminal")
 
+    # server (mode desktop: dashboard monitoring + controller)
+    p_srv = sub.add_parser("server", parents=[make_common_parser()],
+                           help="Mode server: dashboard monitoring + web/Telegram controller")
+    p_srv.add_argument("--web", action="store_true", help="Aktifkan web controller (default: dari config)")
+    p_srv.add_argument("--no-web", action="store_true", help="Matikan web controller")
+    p_srv.add_argument("--host", default=None, help="Bind address web (default: dari config)")
+    p_srv.add_argument("--port", type=int, default=None, help="Port web (default: dari config)")
+    p_srv.add_argument("--token", default=None, help="Token akses web (default: dari config)")
+    p_srv.add_argument("--telegram", action="store_true", help="Aktifkan Telegram bot (default: dari config)")
+    p_srv.add_argument("--no-telegram", action="store_true", help="Matikan Telegram bot")
+    p_srv.add_argument("--tg-token", default=None, help="Token bot Telegram (default: dari config/env)")
+    p_srv.add_argument("--allow", default=None, help="Daftar chat_id Telegram yang diizinkan, pisahkan koma")
+    p_srv.add_argument("--session", default=None, help="Nama sesi (default: server)")
+    p_srv.add_argument("--cwd", default=os.getcwd(), help="Working directory untuk tools")
+    p_srv.add_argument("--yes", action="store_true", help="Auto-approve perintah terminal")
+
     args = parser.parse_args(argv)
     console = Console()
 
@@ -611,6 +674,12 @@ def main(argv=None) -> int:
     if args.command == "telegram":
         from .telegram import run_telegram
         return run_telegram(args, console)
+    if args.command == "server":
+        from .server import run_server
+        # tentukan web/telegram dari flag; fallback ke config
+        args.web = not args.no_web and (args.web or _server_flag_default(args, "web"))
+        args.telegram = not args.no_telegram and (args.telegram or _server_flag_default(args, "telegram"))
+        return run_server(args, console)
     return cmd_chat(args, console)
 
 

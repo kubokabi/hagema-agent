@@ -89,6 +89,12 @@ def run_telegram(args, console: Console) -> int:
         cwd=args.cwd, yes=args.yes,
     )
 
+    # Hormati cfg.tg_allow dari config (ditulis `hagema setup`) supaya konsisten
+    # dengan mode server.
+    for cid in bridge.cfg.tg_allow:
+        if cid not in allow:
+            allow.append(cid)
+
     console.print("[bold cyan]hagema telegram[/bold cyan] — bot aktif (Ctrl+C berhenti)")
     console.print(f"Provider: [bold]{bridge.pm.current_name}[/bold] → {bridge.pm.current.cfg.model}")
     if allow:
@@ -99,20 +105,36 @@ def run_telegram(args, console: Console) -> int:
             "dan memberi tahu chat_id-mu — restart dengan --allow <chat_id>.[/yellow]"
         )
 
+    _poll_loop(token, allow, bridge, console)
+    return 0
+
+
+def _poll_loop(token: str, allow: List[int], bridge, console: Console,
+               stats: Optional[dict] = None, quiet: bool = False,
+               chat_lock: Optional[object] = None) -> None:
+    """Loop long-polling; dipakai CLI dan mode server (thread).
+
+    `stats` (opsional) adalah dict bersama yang di-update untuk dashboard.
+    `quiet=True` menekan log agar tidak merusak tampilan dashboard.
+    `chat_lock` (opsional) dipakai mode server supaya chat web & Telegram
+    tidak saling berebut state sesi yang sama.
+    """
     offset = 0
     try:
         while True:
             try:
                 data = _call(token, "getUpdates", offset=offset, timeout=30)
             except Exception as e:  # noqa: BLE001 - jaringan fluktuatif, coba lagi
-                console.print(f"[dim]getUpdates gagal: {e} — coba lagi...[/dim]")
+                if not quiet:
+                    console.print(f"[dim]getUpdates gagal: {e} — coba lagi...[/dim]")
                 time.sleep(3)
                 continue
 
             if not data.get("ok"):
                 # Token tidak valid / API error — jangan tight-loop, jeda sebelum coba lagi
                 desc = data.get("description") or "respons tidak valid"
-                console.print(f"[red]Telegram API: {desc}[/red]")
+                if not quiet:
+                    console.print(f"[red]Telegram API: {desc}[/red]")
                 time.sleep(5)
                 continue
 
@@ -133,29 +155,43 @@ def run_telegram(args, console: Console) -> int:
                         )
                         continue
 
-                    cmd = _command(text)
-                    if cmd == "/start":
-                        _send(token, chat_id, "🐝 Selamat datang di hagema-agent!\n" + HELP)
-                    elif cmd == "/help":
-                        _send(token, chat_id, HELP)
-                    elif cmd == "/status":
-                        _send(token, chat_id, bridge.status())
-                    elif cmd == "/usage":
-                        _send(token, chat_id, bridge.usage())
-                    elif cmd == "/providers":
-                        _send(token, chat_id, bridge.providers_text())
-                    elif cmd == "/switch":
-                        target = (text or "").split(maxsplit=1)[1] if len((text or "").split()) > 1 else ""
-                        _send(token, chat_id, bridge.switch(target) if target else "Pakai: /switch <nama>")
-                    elif cmd == "/reset":
-                        _send(token, chat_id, bridge.reset())
+                    # Mode server: semua operasi bridge (chat, switch, reset) dipakai
+                    # bersama web controller — kunci sama supaya state sesi aman.
+                    def _process():
+                        cmd = _command(text)
+                        if cmd == "/start":
+                            _send(token, chat_id, "🐝 Selamat datang di hagema-agent!\n" + HELP)
+                        elif cmd == "/help":
+                            _send(token, chat_id, HELP)
+                        elif cmd == "/status":
+                            _send(token, chat_id, bridge.status())
+                        elif cmd == "/usage":
+                            _send(token, chat_id, bridge.usage())
+                        elif cmd == "/providers":
+                            _send(token, chat_id, bridge.providers_text())
+                        elif cmd == "/switch":
+                            target = (text or "").split(maxsplit=1)[1] if len((text or "").split()) > 1 else ""
+                            _send(token, chat_id, bridge.switch(target) if target else "Pakai: /switch <nama>")
+                        elif cmd == "/reset":
+                            _send(token, chat_id, bridge.reset())
+                        else:
+                            if not quiet:
+                                console.print(f"[dim]chat {chat_id}: {text[:60]}[/dim]")
+                            reply = bridge.chat(text)
+                            _send(token, chat_id, reply)
+                            if stats is not None:
+                                stats["tg_messages"] = stats.get("tg_messages", 0) + 1
+                                stats["tg_last"] = text[:60]
+
+                    if chat_lock is not None:
+                        with chat_lock:
+                            _process()
                     else:
-                        console.print(f"[dim]chat {chat_id}: {text[:60]}[/dim]")
-                        reply = bridge.chat(text)
-                        _send(token, chat_id, reply)
+                        _process()
                 except Exception as e:  # noqa: BLE001 - satu pesan gagal jangan matikan bot
-                    console.print(f"[red]Gagal proses pesan dari {chat_id}: {e}[/red]")
+                    if not quiet:
+                        console.print(f"[red]Gagal proses pesan dari {chat_id}: {e}[/red]")
                     continue
     except KeyboardInterrupt:
-        console.print("\nTelegram bot berhenti.")
-    return 0
+        if not quiet:
+            console.print("\nTelegram bot berhenti.")

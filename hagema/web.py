@@ -193,6 +193,8 @@ inp.focus();
 class Handler(BaseHTTPRequestHandler):
     bridge = None
     token: Optional[str] = None
+    request_count = 0
+    last_message = ""
     # ThreadingHTTPServer menangani tiap request di thread terpisah, sedangkan
     # bridge (sesi + agent) adalah satu instance bersama — kunci ini memastikan
     # hanya satu chat yang diproses pada satu waktu agar file JSONL & state aman.
@@ -233,6 +235,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._unauthorized()
             self._json(200, {"provider": self.bridge.status().splitlines()[0]})
             return
+        if parsed.path == "/api/stats":
+            if not self._authorized():
+                return self._unauthorized()
+            self._json(
+                200,
+                {
+                    "requests": self.request_count,
+                    "last_message": self.last_message,
+                    "provider": self.bridge.status().splitlines()[0],
+                },
+            )
+            return
         self._json(404, {"error": "not found"})
 
     def do_POST(self):
@@ -258,6 +272,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": "message kosong"})
         with self.lock:
             reply = self.bridge.chat(message)
+            Handler.request_count += 1
+            Handler.last_message = message[:60]
         return self._json(200, {"reply": reply})
 
     def _json(self, code: int, obj: dict):

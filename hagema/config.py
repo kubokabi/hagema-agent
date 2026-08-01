@@ -46,6 +46,18 @@ class Config:
         self.skills_dir = _expand(raw.get("skills_dir", "~/.hagema/skills"))
         self.memory_file = _expand(raw.get("memory_file", "~/.hagema/MEMORY.md"))
 
+        # --- akses jarak jauh (server desktop / web / telegram) ---
+        web = raw.get("web") or {}
+        self.web_enabled = bool(web.get("enabled", False))
+        self.web_host = str(web.get("host", "127.0.0.1"))
+        self.web_port = int(web.get("port", 8765))
+        self.web_token = str(web.get("token", "") or "")
+
+        tg = raw.get("telegram") or {}
+        self.tg_enabled = bool(tg.get("enabled", False))
+        self.tg_token = str(tg.get("token", "") or "")
+        self.tg_allow: list = [int(x) for x in (tg.get("allow") or []) if str(x).strip().isdigit()]
+
     @classmethod
     def load(cls, path: Path) -> "Config":
         if not path.exists():

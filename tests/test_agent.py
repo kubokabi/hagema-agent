@@ -249,6 +249,30 @@ class ConfigTest(unittest.TestCase):
         cfg.load_env(env_file)
         self.assertEqual(os.environ.get("DEEPSEEK_API_KEY"), "sk-test")
 
+    def test_remote_settings_parsing(self):
+        raw = {
+            "default_provider": "deepseek",
+            "providers": {},
+            "failover_order": [],
+            "web": {"enabled": True, "host": "0.0.0.0", "port": 8765, "token": "abc"},
+            "telegram": {"enabled": True, "token": "t", "allow": ["123", "456"]},
+        }
+        cfg = Config(raw)
+        self.assertTrue(cfg.web_enabled)
+        self.assertEqual(cfg.web_host, "0.0.0.0")
+        self.assertEqual(cfg.web_port, 8765)
+        self.assertEqual(cfg.web_token, "abc")
+        self.assertTrue(cfg.tg_enabled)
+        self.assertEqual(cfg.tg_token, "t")
+        self.assertEqual(cfg.tg_allow, [123, 456])
+
+    def test_remote_settings_defaults(self):
+        cfg = Config({"default_provider": "deepseek", "providers": {}, "failover_order": []})
+        self.assertFalse(cfg.web_enabled)
+        self.assertEqual(cfg.web_port, 8765)
+        self.assertFalse(cfg.tg_enabled)
+        self.assertEqual(cfg.tg_allow, [])
+
 
 class HeadlessBridgeTest(unittest.TestCase):
     """Bridge headless (dipakai web & Telegram bot) harus aman tanpa console."""
@@ -367,6 +391,16 @@ class WebServerTest(unittest.TestCase):
             self.assertEqual(status, 200)
         finally:
             Handler.token = None
+
+    def test_stats_endpoint(self):
+        from hagema.web import Handler
+        Handler.request_count = 0
+        Handler.last_message = ""
+        self._request("/api/chat", {"message": "halo"})
+        status, body = self._request("/api/stats")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(body["requests"], 1)
+        self.assertIn("halo", body["last_message"])
 
 
 if __name__ == "__main__":
