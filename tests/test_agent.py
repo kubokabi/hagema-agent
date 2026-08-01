@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hagema.agent import Agent  # noqa: E402
 from hagema.config import Config  # noqa: E402
+from hagema.history import HistoryRecorder  # noqa: E402
 from hagema.memory import Memory  # noqa: E402
 from hagema.providers import MockProvider, ProviderConfig, ProviderManager  # noqa: E402
 from hagema.session import Session  # noqa: E402
@@ -273,6 +274,23 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(cfg.tg_enabled)
         self.assertEqual(cfg.tg_allow, [])
 
+    def test_history_and_auto_memory_defaults(self):
+        cfg = Config({"default_provider": "deepseek", "providers": {}, "failover_order": []})
+        self.assertTrue(cfg.auto_memory)
+        self.assertEqual(cfg.history_dir.name, "history")
+
+    def test_history_and_auto_memory_parsing(self):
+        raw = {
+            "default_provider": "deepseek",
+            "providers": {},
+            "failover_order": [],
+            "history_dir": "~/myhistory",
+            "auto_memory": False,
+        }
+        cfg = Config(raw)
+        self.assertFalse(cfg.auto_memory)
+        self.assertIn("myhistory", str(cfg.history_dir))
+
 
 class HeadlessBridgeTest(unittest.TestCase):
     """Bridge headless (dipakai web & Telegram bot) harus aman tanpa console."""
@@ -401,6 +419,106 @@ class WebServerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertGreaterEqual(body["requests"], 1)
         self.assertIn("halo", body["last_message"])
+
+    def test_agents_endpoint(self):
+        status, body = self._request("/api/agents")
+        self.assertEqual(status, 200)
+        self.assertIsInstance(body["agents"], list)
+
+
+class HistoryRecorderTest(unittest.TestCase):
+    """Riwayat percakapan untuk bahan belajar AI."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.rec = HistoryRecorder(self.tmp, "sesi-a", source="cli")
+
+    def test_record_writes_jsonl(self):
+        self.rec.record(
+            "halo", "Halo juga!", provider="deepseek", model="deepseek-chat",
+            tokens_in=10, tokens_out=5, cost=0.001,
+            tool_calls=[{"name": "list_directory", "arguments": {}, "output": "[...]"}],
+            duration_s=1.2,
+        )
+        self.assertTrue(self.rec.path.exists())
+        entries = HistoryRecorder.load_all(self.tmp)
+        self.assertEqual(len(entries), 1)
+        e = entries[0]
+        self.assertEqual(e["user"], "halo")
+        self.assertEqual(e["provider"], "deepseek")
+        self.assertEqual(e["tokens_in"], 10)
+        self.assertEqual(len(e["tool_calls"]), 1)
+        self.assertEqual(e["source"], "cli")
+
+    def test_summary_empty(self):
+        text = HistoryRecorder.summary(self.tmp)
+        self.assertIn("belum ada riwayat", text)
+
+    def test_agent_records_history(self):
+        """Agent harus menulis ke riwayat saat run() dipanggil."""
+        pm = make_manager({"m": "normal"}, "m", ["m"])
+        session = Session(self.tmp / "agent-test.jsonl")
+        skills = SkillsRegistry(self.tmp / "skills")
+        memory = Memory(self.tmp / "MEMORY.md")
+        executor = ToolExecutor(cwd=self.tmp)
+        rec = HistoryRecorder(self.tmp, "agent-test")
+        agent = Agent(None, pm, session, executor, skills, memory, history=rec)
+        agent.run("halo dari history")
+        entries = HistoryRecorder.load_all(self.tmp)
+        self.assertGreaterEqual(len(entries), 1)
+        self.assertEqual(entries[0]["user"], "halo dari history")
+
+
+class AgentsDetectTest(unittest.TestCase):
+    """Deteksi CLI agent di mesin (hagema agents)."""
+
+    def test_detect_finds_python(self):
+        from hagema.agents import detect_agents, install_command_for
+        info = {a.name: a for a in detect_agents(extra=["python3"])}
+        self.assertIn("python3", info)
+        self.assertTrue(info["python3"].installed)
+        # 'python3' tidak dikenal, jadi tidak ada perintah install
+        self.assertIsNone(install_command_for("python3"))
+
+    def test_known_agent_install_command(self):
+        from hagema.agents import install_command_for
+        self.assertIsNotNone(install_command_for("opencode"))
+        self.assertIsNotNone(install_command_for("aider"))
+
+    def test_agents_text(self):
+        from hagema.agents import agents_text
+        text = agents_text()
+        self.assertIn("CLI AGENT", text)
+
+
+class AutoMemoryTest(unittest.TestCase):
+    """Auto-memory ala Hermes: rekap sesi masuk MEMORY.md otomatis."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.memory = Memory(self.tmp / "MEMORY.md")
+        self.session = Session(self.tmp / "s.jsonl")
+        self.session.add({"role": "user", "content": "kerjakan tugas"})
+        self.session.add({"role": "assistant", "content": "selesai"})
+
+    def test_append_section(self):
+        self.memory.append_section("Auto-recap test", "## Konteks\nsesi demo")
+        content = self.memory.load()
+        self.assertIn("Auto-recap test", content)
+        self.assertIn("sesi demo", content)
+
+    def test_auto_remember_with_mock_provider(self):
+        pm = make_manager({"m": "normal"}, "m", ["m"])
+        ok = self.memory.auto_remember("Auto-recap test", pm.current, self.session)
+        self.assertTrue(ok)
+        content = self.memory.load()
+        self.assertIn("Auto-recap test", content)
+
+    def test_auto_remember_empty_session(self):
+        pm = make_manager({"m": "normal"}, "m", ["m"])
+        empty = Session(self.tmp / "empty.jsonl")
+        ok = self.memory.auto_remember("Auto-recap", pm.current, empty)
+        self.assertFalse(ok)
 
 
 if __name__ == "__main__":

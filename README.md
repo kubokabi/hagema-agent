@@ -13,6 +13,9 @@ Agen AI otonom ala **Hermes Agent** (Nous Research) yang kamu bangun sendiri —
 - 🧠 **Memori jangka panjang** (`MEMORY.md`) — selalu dimuat di setiap sesi
 - 🛠️ **Sistem skill** (standar `agentskills.io`) — prosedur yang bisa dipanggil lewat `/skill`
 - 💰 **Pelacakan biaya** — estimasi token & USD per provider
+- 📡 **Kontrol CLI agent lain** (`hagema agents`) — deteksi otomatis agent yang terpasang (opencode, claude, codex, aichat, gemini, aider, cursor) + install yang belum ada
+- 📚 **Riwayat lengkap untuk bahan belajar AI** — semua percakapan (CLI/web/Telegram) direkam detail (token, biaya, tool calls, timestamp) ke `~/.hagema/history/`
+- 🧠 **Auto-memory ala Hermes** — rekap sesi otomatis masuk `MEMORY.md` saat keluar (bisa dimatikan via `auto_memory: false` di config)
 - 🧪 **Mode mock** — demo lengkap tanpa API key (termasuk demo failover)
 
 ## Quickstart (install semudah mungkin)
@@ -72,6 +75,9 @@ hagema model ollama qwen3:14b  # ganti provider + model sekaligus
 hagema models                  # deteksi daftar model dari API provider aktif
 hagema models openrouter       # deteksi model dari provider tertentu
 hagema doctor                  # cek instalasi & config
+hagema agents                  # deteksi CLI agent yang terpasang di mesin
+hagema agents install aider    # install CLI agent yang belum ada (mis. aider)
+hagema history                 # statistik riwayat percakapan (bahan belajar AI)
 hagema --session kerja-ssmi    # sesi bernama (riwayat tersimpan)
 hagema --yes                   # auto-approve perintah terminal
 ```
@@ -148,6 +154,42 @@ hagema-agent/
 │   ├── skills.py           # registry skill
 │   └── cli.py              # REPL
 └── tests/test_agent.py     # unit test
+```
+
+## Kontrol CLI agent lain: `hagema agents` 📡
+
+Scan PATH dan laporkan CLI agent coding yang terpasang (opencode, claude, codex, aichat, gemini, aider, cursor, hermes) beserta versinya, dan tawarkan install untuk yang belum ada:
+
+```bash
+hagema agents                  # lihat semua: TERPASANG / belum ada + perintah install
+hagema agents install aider    # install aider (pipx install aider-chat) setelah konfirmasi
+hagema agents --yes install opencode  # install tanpa konfirmasi
+```
+
+Bisa juga dikontrol dari HP: di Telegram ketik `/agents` untuk melihat status CLI agent di laptop/PC, atau buka endpoint web `GET /api/agents` (token opsional).
+
+## Riwayat lengkap untuk bahan belajar AI 📚
+
+Semua percakapan (CLI, web, Telegram, server) direkam **sedetail mungkin** ke `~/.hagema/history/<YYYY-MM-DD>/<sesi>.jsonl`:
+
+- teks user & balasan asisten
+- tool calls (nama, argumen, output)
+- provider aktif, model, token in/out, estimasi biaya
+- timestamp, durasi, sumber (cli/web/telegram)
+
+```bash
+hagema history   # ringkasan: total giliran, sesi, token, biaya, sumber
+```
+
+Format JSONL (satu objek per baris) siap dipakai untuk analisis, eval, atau bahan fine-tune nanti.
+
+## Auto-memory ala Hermes 🧠
+
+Saat kamu keluar dari REPL (Ctrl+C atau `/exit`), sesi di-rekap dan hasilnya **otomatis ditambahkan ke `MEMORY.md`** dengan judul `## Auto-recap <tanggal>` — jadi pengetahuan dari sesi kemarin selalu tersedia di sesi berikutnya. Matikan kalau tidak mau:
+
+```yaml
+# ~/.hagema/config.yaml
+auto_memory: false
 ```
 
 ## Mode Server Desktop (dashboard monitoring) 🖥️

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -22,6 +23,7 @@ from rich.prompt import Confirm, Prompt
 from . import __version__
 from .agent import Agent
 from .config import DEFAULT_CONFIG_PATH, Config
+from .history import HistoryRecorder
 from .memory import Memory
 from .providers import MockProvider, ProviderConfig, ProviderManager
 from .session import Session
@@ -121,7 +123,8 @@ def build_components(args) -> tuple:
         cwd=Path(args.cwd),
         skills=skills,
     )
-    agent = Agent(cfg, pm, session, executor, skills, memory)
+    history = HistoryRecorder(cfg.history_dir, session.path.stem, source="cli")
+    agent = Agent(cfg, pm, session, executor, skills, memory, history=history)
     return cfg, pm, session, skills, memory, agent
 
 
@@ -176,6 +179,12 @@ def cmd_chat(args, console) -> int:
         try:
             user_input = Prompt.ask("[bold green]kamu[/bold green]")
         except (EOFError, KeyboardInterrupt):
+            # Auto-memory ala Hermes: rekap & simpan ke MEMORY.md sebelum keluar
+            if cfg.auto_memory and pm.current and session.messages:
+                stamp = time.strftime("%Y-%m-%d %H:%M")
+                ok = memory.auto_remember(f"Auto-recap {stamp}", pm.current, session)
+                if ok:
+                    console.print("[dim]memori diperbarui otomatis ✓[/dim]")
             console.print("\nSampai jumpa! 👋")
             return 0
         user_input = user_input.strip()
@@ -202,6 +211,12 @@ def handle_command(line: str, ctx) -> bool:
     arg = parts[1].strip() if len(parts) > 1 else ""
 
     if cmd == "/exit":
+        # Auto-memory ala Hermes: rekap & simpan ke MEMORY.md sebelum keluar
+        if cfg.auto_memory and pm.current and session.messages:
+            stamp = time.strftime("%Y-%m-%d %H:%M")
+            ok = memory.auto_remember(f"Auto-recap {stamp}", pm.current, session)
+            if ok:
+                console.print("[dim]memori diperbarui otomatis ✓[/dim]")
         console.print("Sampai jumpa! 👋")
         return False
     if cmd == "/help":
@@ -507,6 +522,63 @@ def cmd_models(args, console) -> int:
 
 
 # ============================================================
+# Subcommand: agents (deteksi CLI agent di mesin)
+# ============================================================
+
+
+def cmd_agents(args, console) -> int:
+    from .agents import KNOWN_AGENTS, detect_agents, install_command_for
+
+    if args.install:
+        name = args.install.lower()
+        info = KNOWN_AGENTS.get(name)
+        if not info:
+            console.print(f"[red]Agent '{name}' tidak dikenal. Yang dikenal: {', '.join(KNOWN_AGENTS)}[/red]")
+            return 1
+        cmd = install_command_for(name)
+        if not cmd:
+            console.print(f"[yellow]{name} tidak punya perintah install otomatis.[/yellow]")
+            return 1
+        console.print(f"Install [bold]{name}[/bold] ({info[0]}):")
+        console.print(f"  [bold cyan]$ {cmd}[/bold cyan]")
+        if args.yes or Confirm.ask("Jalankan sekarang?", default=False):
+            import subprocess
+            console.print("[dim]Menjalankan...[/dim]")
+            code = subprocess.call(cmd, shell=True)
+            if code == 0:
+                console.print("[green]✓ Selesai. Cek ulang dengan [bold]hagema agents[/bold].[/green]")
+            else:
+                console.print(f"[red]Install gagal (exit {code}). Jalankan manual: {cmd}[/red]")
+                return 1
+        else:
+            console.print("[dim]Lewati. Jalankan manual: " + cmd + "[/dim]")
+        return 0
+
+    console.print("[bold]CLI agent di mesin ini:[/bold]")
+    for a in detect_agents():
+        console.print(a.to_text())
+    console.print("\nInstall yang belum ada: [bold]hagema agents install <nama>[/bold]")
+    return 0
+
+
+# ============================================================
+# Subcommand: history (riwayat percakapan untuk bahan belajar AI)
+# ============================================================
+
+
+def cmd_history(args, console) -> int:
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        console.print(f"[red]Config tidak ditemukan: {cfg_path}[/red]")
+        console.print("Jalankan dulu: [bold]hagema setup[/bold]")
+        return 1
+    cfg = Config.load(cfg_path)
+    console.print(f"[bold]Riwayat ({cfg.history_dir}):[/bold]")
+    console.print(HistoryRecorder.summary(cfg.history_dir))
+    return 0
+
+
+# ============================================================
 # Subcommand: doctor
 # ============================================================
 
@@ -622,6 +694,15 @@ def main(argv=None) -> int:
     sub.add_parser("doctor", parents=[make_common_parser()],
                    help="Periksa instalasi & konfigurasi")
 
+    # history
+    sub.add_parser("history", parents=[make_common_parser()],
+                   help="Statistik riwayat percakapan (bahan belajar AI)")
+
+    # agents
+    p_agents = sub.add_parser("agents", parents=[make_common_parser()],
+                              help="Deteksi CLI agent yang terpasang di mesin ini")
+    p_agents.add_argument("install", nargs="?", help="Nama agent yang mau diinstall")
+
     # serve (web app untuk kontrol dari HP/browser)
     p_serve = sub.add_parser("serve", parents=[make_common_parser()],
                              help="Jalankan web app lokal untuk kontrol dari HP")
@@ -662,6 +743,10 @@ def main(argv=None) -> int:
 
     if args.command == "setup":
         return cmd_setup(args, console)
+    if args.command == "agents":
+        return cmd_agents(args, console)
+    if args.command == "history":
+        return cmd_history(args, console)
     if args.command == "model":
         return cmd_model(args, console)
     if args.command == "models":

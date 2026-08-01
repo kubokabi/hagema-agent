@@ -32,6 +32,7 @@ HELP = (
     "/status — provider & sesi aktif\n"
     "/usage — token & biaya\n"
     "/providers — daftar provider\n"
+    "/agents — CLI agent yang terpasang di mesin\n"
     "/switch <nama> — pindah provider\n"
     "/reset — bersihkan sesi\n"
     "\nSelain itu, kirim pesan bebas untuk ngobrol dengan agen."
@@ -169,6 +170,9 @@ def _poll_loop(token: str, allow: List[int], bridge, console: Console,
                             _send(token, chat_id, bridge.usage())
                         elif cmd == "/providers":
                             _send(token, chat_id, bridge.providers_text())
+                        elif cmd == "/agents":
+                            from .agents import agents_text
+                            _send(token, chat_id, agents_text())
                         elif cmd == "/switch":
                             target = (text or "").split(maxsplit=1)[1] if len((text or "").split()) > 1 else ""
                             _send(token, chat_id, bridge.switch(target) if target else "Pakai: /switch <nama>")

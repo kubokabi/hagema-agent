@@ -247,6 +247,21 @@ class Handler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if parsed.path == "/api/agents":
+            if not self._authorized():
+                return self._unauthorized()
+            from .agents import detect_agents
+            self._json(
+                200,
+                {
+                    "agents": [
+                        {"name": a.name, "label": a.label, "installed": a.installed,
+                         "version": a.version, "path": a.path}
+                        for a in detect_agents()
+                    ]
+                },
+            )
+            return
         self._json(404, {"error": "not found"})
 
     def do_POST(self):

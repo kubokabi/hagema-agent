@@ -19,6 +19,7 @@ from typing import Optional
 
 from .agent import Agent
 from .config import Config
+from .history import HistoryRecorder
 from .memory import Memory
 from .providers import ProviderManager
 from .session import Session
@@ -33,6 +34,7 @@ def build_bridge(
     cwd: str = ".",
     yes: bool = False,
     pm: Optional[ProviderManager] = None,
+    source: str = "remote",
 ) -> "HeadlessBridge":
     """Bangun HeadlessBridge dari path config/env (atau ProviderManager siap pakai)."""
     cfg = Config.load(cfg_path)
@@ -49,7 +51,8 @@ def build_bridge(
         cwd=Path(cwd),
         skills=skills,
     )
-    agent = Agent(cfg, pm, session, executor, skills, memory)
+    history = HistoryRecorder(cfg.history_dir, session.path.stem, source=source)
+    agent = Agent(cfg, pm, session, executor, skills, memory, history=history)
     return HeadlessBridge(cfg, pm, session, skills, memory, agent)
 
 

@@ -46,6 +46,10 @@ class Config:
         self.skills_dir = _expand(raw.get("skills_dir", "~/.hagema/skills"))
         self.memory_file = _expand(raw.get("memory_file", "~/.hagema/MEMORY.md"))
 
+        # --- riwayat & memori otomatis ---
+        self.history_dir = _expand(raw.get("history_dir", "~/.hagema/history"))
+        self.auto_memory = bool(raw.get("auto_memory", True))
+
         # --- akses jarak jauh (server desktop / web / telegram) ---
         web = raw.get("web") or {}
         self.web_enabled = bool(web.get("enabled", False))

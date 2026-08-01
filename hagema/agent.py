@@ -9,7 +9,8 @@ dengan provider baru tanpa kehilangan konteks.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 from .memory import Memory
 from .providers import ProviderError, ProviderManager
@@ -43,6 +44,7 @@ class Agent:
         executor: ToolExecutor,
         skills: SkillsRegistry,
         memory: Memory,
+        history=None,
     ):
         self.config = config
         self.provider_mgr = provider_mgr
@@ -50,7 +52,10 @@ class Agent:
         self.executor = executor
         self.skills = skills
         self.memory = memory
+        self.history = history
         self.usage: Dict[str, Dict[str, float]] = {}
+        self._turn_usage: Dict[str, Dict[str, float]] = {}
+        self._turn_tools: List[Dict[str, Any]] = []
 
     # ---------- prompt ----------
 
@@ -74,7 +79,33 @@ class Agent:
 
     def run(self, user_text: str) -> str:
         self.session.add({"role": "user", "content": user_text})
-        return self._loop()
+        start = time.time()
+        self._turn_usage = {}
+        self._turn_tools = []
+        reply = self._loop()
+        self._record_history(user_text, reply, start)
+        return reply
+
+    def _record_history(self, user_text: str, reply: str, start: float) -> None:
+        """Rekam satu giliran ke riwayat (provider, token, biaya, tool calls)."""
+        if self.history is None:
+            return
+        total_in = sum(float(s.get("input_tokens", 0) or 0) for s in self._turn_usage.values())
+        total_out = sum(float(s.get("output_tokens", 0) or 0) for s in self._turn_usage.values())
+        total_cost = sum(float(s.get("cost", 0) or 0) for s in self._turn_usage.values())
+        err = "" if "[ERROR" not in reply else reply[:200]
+        self.history.record(
+            user_text,
+            reply,
+            provider=self.provider_mgr.current_name,
+            model=self.provider_mgr.current.cfg.model if self.provider_mgr.current else "",
+            tokens_in=total_in,
+            tokens_out=total_out,
+            cost=total_cost,
+            tool_calls=self._turn_tools,
+            duration_s=time.time() - start,
+            error=err,
+        )
 
     def _loop(self, retries: int = 2) -> str:
         for _ in range(12):  # batas iterasi tool
@@ -104,6 +135,7 @@ class Agent:
                     args = {}
                 output = self.executor.execute(name, args)
                 self.session.add({"role": "tool", "tool_call_id": tc.get("id"), "content": output})
+                self._turn_tools.append({"name": name, "arguments": args, "output": output[:2000]})
 
         return "ERROR: batas iterasi tool terlampaui."
 
@@ -137,11 +169,18 @@ class Agent:
         u = result.get("usage") or {}
         name = self.provider.name
         stats = self.usage.setdefault(name, {"input_tokens": 0.0, "output_tokens": 0.0, "cost": 0.0})
+        tstats = self._turn_usage.setdefault(name, {"input_tokens": 0.0, "output_tokens": 0.0, "cost": 0.0})
         inp = float(u.get("input_tokens", 0) or 0)
         out = float(u.get("output_tokens", 0) or 0)
         stats["input_tokens"] += inp
         stats["output_tokens"] += out
         stats["cost"] += (
+            inp / 1_000_000 * self.provider.cfg.price_in
+            + out / 1_000_000 * self.provider.cfg.price_out
+        )
+        tstats["input_tokens"] += inp
+        tstats["output_tokens"] += out
+        tstats["cost"] += (
             inp / 1_000_000 * self.provider.cfg.price_in
             + out / 1_000_000 * self.provider.cfg.price_out
         )

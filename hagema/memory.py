@@ -25,3 +25,29 @@ class Memory:
         content = existing + "\n" + entry if existing else entry
         self.path.write_text(content, encoding="utf-8")
         return entry.strip()
+
+    def append_section(self, title: str, text: str) -> str:
+        """Auto-memory: tambahkan satu bagian bernama (mis. rekap sesi) ke MEMORY.md."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        body = text.strip()
+        if not body:
+            return ""
+        entry = f"## {title.strip()}\n\n{body}\n"
+        existing = self.load()
+        content = existing + "\n" + entry if existing else entry
+        self.path.write_text(content, encoding="utf-8")
+        return title.strip()
+
+    def auto_remember(self, title: str, provider, session) -> bool:
+        """Auto-memory ala Hermes: rekap sesi lalu simpan ke MEMORY.md.
+
+        Kembalikan True jika rekap berhasil dihasilkan & disimpan.
+        """
+        try:
+            recap = session.generate_recap(provider)
+        except Exception:  # noqa: BLE001 - auto-memory tidak boleh mematikan apa pun
+            recap = ""
+        if recap:
+            self.append_section(title, recap)
+            return True
+        return False
