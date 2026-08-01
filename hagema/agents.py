@@ -121,7 +121,7 @@ def agents_text() -> str:
     if missing:
         lines.append("\nBelum terpasang (bisa diinstall):")
         lines.extend(a.to_text() for a in missing)
-    lines.append("\nInstall dari terminal: [bold]hagema agents install <nama>[/bold]")
+    lines.append("\nInstall dari terminal: hagema agents install <nama>")
     return "\n".join(lines)
 
 

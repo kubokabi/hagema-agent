@@ -158,6 +158,7 @@ async function api(path, body) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || res.statusText);
   refreshStatus();   // update badge setelah berhasil (mis. baru login token)
+  loadAgents();      // refresh dropdown agent (baru terisi setelah token)
   return data;
 }
 
